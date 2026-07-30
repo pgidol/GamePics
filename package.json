@@ -1,0 +1,13 @@
+{
+  "name": "gamepics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GamePics — Cloudflare R2 游戏截图画廊",
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3"
+  }
+}

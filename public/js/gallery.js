@@ -1,0 +1,261 @@
+/**
+ * Gallery Module — 瀑布流画廊、懒加载、无限滚动
+ */
+
+export class Gallery {
+  /**
+   * @param {object} opts
+   * @param {string} opts.r2PublicUrl - R2 公开域名
+   * @param {HTMLElement} opts.galleryEl - 画廊容器
+   * @param {HTMLElement} opts.loadMoreEl - 加载更多指示器
+   * @param {HTMLElement} opts.sentinelEl - 滚动哨兵
+   * @param {HTMLElement} opts.emptyEl - 空状态
+   * @param {HTMLElement} opts.skeletonEl - 骨架屏
+   * @param {HTMLElement} opts.errorEl - 错误状态
+   * @param {HTMLElement} opts.errorMsgEl - 错误消息
+   * @param {Function} opts.onImageClick - 图片点击回调
+   * @param {Function} opts.onCountChange - 图片总数变化回调
+   */
+  constructor(opts) {
+    this.r2Url = opts.r2PublicUrl.replace(/\/$/, '');
+    this.galleryEl = opts.galleryEl;
+    this.loadMoreEl = opts.loadMoreEl;
+    this.sentinelEl = opts.sentinelEl;
+    this.emptyEl = opts.emptyEl;
+    this.skeletonEl = opts.skeletonEl;
+    this.errorEl = opts.errorEl;
+    this.errorMsgEl = opts.errorMsgEl;
+    this.onImageClick = opts.onImageClick;
+    this.onCountChange = opts.onCountChange;
+
+    // 状态
+    this.images = [];
+    this.cursor = null;
+    this.hasMore = true;
+    this.loading = false;
+    this.currentGame = '';
+    this.cardIndex = 0; // 用于动画延迟
+
+    // 懒加载 Observer
+    this.lazyObserver = new IntersectionObserver(
+      (entries) => this._onLazyIntersect(entries),
+      { rootMargin: '200px 0px' }
+    );
+
+    // 无限滚动 Observer
+    this.scrollObserver = new IntersectionObserver(
+      (entries) => this._onScrollIntersect(entries),
+      { rootMargin: '600px 0px' }
+    );
+    this.scrollObserver.observe(this.sentinelEl);
+  }
+
+  /**
+   * 加载指定游戏的图片（重置画廊）
+   */
+  async loadGame(game = '') {
+    this.currentGame = game;
+    this.images = [];
+    this.cursor = null;
+    this.hasMore = true;
+    this.cardIndex = 0;
+
+    // 清空画廊
+    this.galleryEl.innerHTML = '';
+    this._hideEmpty();
+    this._hideError();
+    this._showSkeleton();
+
+    await this.loadMore();
+    this._hideSkeleton();
+  }
+
+  /**
+   * 显示搜索结果（替换画廊内容）
+   */
+  showSearchResults(images) {
+    this.images = images;
+    this.cursor = null;
+    this.hasMore = false;
+    this.cardIndex = 0;
+
+    this.galleryEl.innerHTML = '';
+    this._hideError();
+    this._hideSkeleton();
+
+    if (images.length === 0) {
+      this._showEmpty();
+      this._hideLoadMore();
+    } else {
+      this._hideEmpty();
+      this._renderCards(images);
+      this._hideLoadMore();
+    }
+
+    this.onCountChange?.(images.length);
+  }
+
+  /**
+   * 加载更多图片（追加到画廊）
+   */
+  async loadMore() {
+    if (this.loading || !this.hasMore) return;
+    this.loading = true;
+    this._showLoadMore();
+
+    try {
+      const params = new URLSearchParams({ limit: '30' });
+      if (this.currentGame) params.set('game', this.currentGame);
+      if (this.cursor) params.set('cursor', this.cursor);
+
+      const res = await fetch(`/api/images?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+
+      this.cursor = data.cursor;
+      this.hasMore = data.hasMore;
+
+      if (data.images.length > 0) {
+        this.images.push(...data.images);
+        this._renderCards(data.images);
+        this._hideEmpty();
+      } else if (this.images.length === 0) {
+        this._showEmpty();
+      }
+
+      if (!this.hasMore) {
+        this._hideLoadMore();
+      }
+
+      this.onCountChange?.(this.images.length);
+    } catch (err) {
+      console.error('Failed to load images:', err);
+      if (this.images.length === 0) {
+        this._showError(err.message);
+        this._hideSkeleton();
+      }
+    } finally {
+      this.loading = false;
+      if (this.hasMore) {
+        this._showLoadMore();
+      } else {
+        this._hideLoadMore();
+      }
+    }
+  }
+
+  /**
+   * 获取图片的完整 URL
+   */
+  getImageUrl(key) {
+    return `${this.r2Url}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
+  }
+
+  // ===== 内部方法 =====
+
+  _renderCards(images) {
+    const fragment = document.createDocumentFragment();
+
+    for (const img of images) {
+      const card = this._createCard(img, this.cardIndex);
+      fragment.appendChild(card);
+      this.cardIndex++;
+    }
+
+    this.galleryEl.appendChild(fragment);
+  }
+
+  _createCard(img, index) {
+    const card = document.createElement('div');
+    card.className = 'gallery-card';
+    card.style.animationDelay = `${Math.min(index * 30, 400)}ms`;
+
+    // 找到该图片在总列表中的索引
+    const globalIndex = this.images.indexOf(img);
+    card.dataset.index = globalIndex !== -1 ? globalIndex : index;
+
+    // 图片元素（懒加载）
+    const imgEl = document.createElement('img');
+    imgEl.dataset.src = this.getImageUrl(img.key);
+    imgEl.alt = img.name || img.key;
+    imgEl.loading = 'lazy';
+    imgEl.decoding = 'async';
+
+    // 图片加载完成后显示
+    imgEl.addEventListener('load', () => {
+      imgEl.classList.add('loaded');
+    });
+
+    imgEl.addEventListener('error', () => {
+      // 加载失败时显示占位
+      imgEl.style.minHeight = '120px';
+      imgEl.style.background = 'var(--bg-tertiary)';
+      imgEl.classList.add('loaded');
+    });
+
+    // Overlay 信息
+    const overlay = document.createElement('div');
+    overlay.className = 'card-overlay';
+
+    if (img.game) {
+      const gameBadge = document.createElement('div');
+      gameBadge.className = 'card-game';
+      gameBadge.textContent = img.game;
+      overlay.appendChild(gameBadge);
+    }
+
+    const nameLabel = document.createElement('div');
+    nameLabel.className = 'card-name';
+    nameLabel.textContent = img.name || img.key;
+    overlay.appendChild(nameLabel);
+
+    card.appendChild(imgEl);
+    card.appendChild(overlay);
+
+    // 注册懒加载
+    this.lazyObserver.observe(imgEl);
+
+    // 点击事件
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.index, 10);
+      this.onImageClick?.(idx);
+    });
+
+    return card;
+  }
+
+  _onLazyIntersect(entries) {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        if (img.dataset.src) {
+          img.src = img.dataset.src;
+          delete img.dataset.src;
+          this.lazyObserver.unobserve(img);
+        }
+      }
+    }
+  }
+
+  _onScrollIntersect(entries) {
+    for (const entry of entries) {
+      if (entry.isIntersecting && this.hasMore && !this.loading) {
+        this.loadMore();
+      }
+    }
+  }
+
+  _showLoadMore() { this.loadMoreEl.classList.add('visible'); }
+  _hideLoadMore() { this.loadMoreEl.classList.remove('visible'); }
+  _showEmpty()    { this.emptyEl.classList.add('visible'); }
+  _hideEmpty()    { this.emptyEl.classList.remove('visible'); }
+  _showSkeleton() { this.skeletonEl.classList.add('visible'); }
+  _hideSkeleton() { this.skeletonEl.classList.remove('visible'); }
+
+  _showError(msg) {
+    this.errorMsgEl.textContent = msg || '无法连接到服务器';
+    this.errorEl.classList.add('visible');
+  }
+  _hideError() { this.errorEl.classList.remove('visible'); }
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>GamePics — 游戏截图画廊</title>
+  <meta name="description" content="浏览精选游戏截图收藏，支持全屏预览、分类浏览和搜索。跨设备流畅体验。">
+  <meta name="theme-color" content="#0a0a0f">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- ===== Header ===== -->
+  <header class="header" id="header">
+    <div class="header-inner">
+      <a class="logo" href="/" id="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="6" width="20" height="12" rx="3"/>
+          <circle cx="8.5" cy="12" r="1.5"/><circle cx="15.5" cy="12" r="1.5"/>
+          <path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/>
+        </svg>
+        <span class="logo-text">Game<span class="logo-accent">Pics</span></span>
+      </a>
+
+      <div class="search-wrapper" id="searchWrapper">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索截图..." autocomplete="off" spellcheck="false">
+        <kbd class="search-shortcut" id="searchShortcut">/</kbd>
+        <button class="search-clear" id="searchClear" aria-label="清除搜索">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="header-stats" id="headerStats">
+        <span class="stats-dot"></span>
+        <span class="stats-text" id="statsText">加载中...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Category Bar ===== -->
+  <nav class="category-bar" id="categoryBar">
+    <div class="category-scroll" id="categoryScroll">
+      <button class="category-chip active" data-game="" id="chipAll">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        <span>全部</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===== Main Content ===== -->
+  <main class="main" id="main">
+    <!-- Gallery Grid -->
+    <div class="gallery" id="gallery"></div>
+
+    <!-- Loading Spinner (infinite scroll) -->
+    <div class="load-more" id="loadMore">
+      <div class="spinner"></div>
+      <span>加载更多...</span>
+    </div>
+
+    <!-- Scroll Sentinel (IntersectionObserver target) -->
+    <div id="scrollSentinel" aria-hidden="true"></div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+      </svg>
+      <h2>没有找到截图</h2>
+      <p>试试换个关键词或选择其他分类</p>
+    </div>
+
+    <!-- Initial Loading Skeleton -->
+    <div class="skeleton-grid" id="skeletonGrid">
+      <div class="skeleton-card" style="--h:280px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:200px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:320px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:240px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:300px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:220px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:260px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:340px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:190px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:310px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:250px"><div class="skeleton-shimmer"></div></div>
+      <div class="skeleton-card" style="--h:270px"><div class="skeleton-shimmer"></div></div>
+    </div>
+
+    <!-- Error State -->
+    <div class="error-state" id="errorState">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <h2>加载失败</h2>
+      <p id="errorMessage">无法连接到服务器</p>
+      <button class="retry-btn" id="retryBtn">重试</button>
+    </div>
+  </main>
+
+  <!-- ===== Lightbox ===== -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="图片预览">
+    <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+
+    <button class="lightbox-btn lightbox-close" id="lightboxClose" aria-label="关闭预览">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+
+    <button class="lightbox-btn lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="上一张">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+
+    <button class="lightbox-btn lightbox-nav lightbox-next" id="lightboxNext" aria-label="下一张">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 6 15 12 9 18"/>
+      </svg>
+    </button>
+
+    <div class="lightbox-content" id="lightboxContent">
+      <img class="lightbox-image" id="lightboxImage" alt="截图预览" draggable="false">
+      <div class="lightbox-spinner" id="lightboxSpinner">
+        <div class="spinner spinner-lg"></div>
+      </div>
+    </div>
+
+    <div class="lightbox-info" id="lightboxInfo">
+      <div class="lightbox-info-left">
+        <span class="lightbox-game" id="lightboxGame"></span>
+        <span class="lightbox-filename" id="lightboxFilename"></span>
+      </div>
+      <div class="lightbox-info-right">
+        <span class="lightbox-counter" id="lightboxCounter"></span>
+        <span class="lightbox-size" id="lightboxSize"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Back to Top ===== -->
+  <button class="back-to-top" id="backToTop" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"/>
+    </svg>
+  </button>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
