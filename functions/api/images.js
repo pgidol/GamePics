@@ -31,6 +31,7 @@ export async function onRequestGet(context) {
     const game = url.searchParams.get('game') || '';
     const pageToken = url.searchParams.get('pageToken') || '';
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '30', 10) || 30, 1), 100);
+    const sort = url.searchParams.get('sort') || 'newest'; // 'newest' or 'oldest'
 
     const prefix = game ? `${game}/` : undefined;
 
@@ -102,6 +103,13 @@ export async function onRequestGet(context) {
       batchCursor = listed.cursor;
       skipCount = 0;
     }
+
+    // ---- 按上传时间排序 ----
+    images.sort((a, b) => {
+      const ta = a.uploaded ? new Date(a.uploaded).getTime() : 0;
+      const tb = b.uploaded ? new Date(b.uploaded).getTime() : 0;
+      return sort === 'oldest' ? (ta - tb) : (tb - ta);
+    });
 
     // ---- 构造下一页令牌 ----
     const hasMore = !exhausted && images.length >= limit;

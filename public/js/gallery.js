@@ -15,6 +15,7 @@ export class Gallery {
    * @param {HTMLElement} opts.errorMsgEl - 错误消息
    * @param {Function} opts.onImageClick - 图片点击回调
    * @param {Function} opts.onCountChange - 图片总数变化回调
+   * @param {Function} opts.onSortChange - 排序变化回调
    */
   constructor(opts) {
     this.r2Url = opts.r2PublicUrl.replace(/\/$/, '');
@@ -27,6 +28,7 @@ export class Gallery {
     this.errorMsgEl = opts.errorMsgEl;
     this.onImageClick = opts.onImageClick;
     this.onCountChange = opts.onCountChange;
+    this.onSortChange = opts.onSortChange;
 
     // 状态
     this.images = [];
@@ -34,6 +36,7 @@ export class Gallery {
     this.hasMore = true;
     this.loading = false;
     this.currentGame = '';
+    this.currentSort = 'newest'; // 'newest' or 'oldest'
     this.cardIndex = 0; // 用于动画延迟
 
     // JS 分列管理（避免 CSS columns 重排）
@@ -68,8 +71,11 @@ export class Gallery {
   /**
    * 加载指定游戏的图片（重置画廊）
    */
-  async loadGame(game = '') {
+  async loadGame(game = '', sort = null) {
     this.currentGame = game;
+    if (sort !== null) {
+      this.currentSort = sort;
+    }
     this.images = [];
     this.pageToken = null;
     this.hasMore = true;
@@ -83,6 +89,16 @@ export class Gallery {
 
     await this.loadMore();
     this._hideSkeleton();
+  }
+
+  /**
+   * 设置排序方式并重新加载
+   */
+  async setSort(sort) {
+    if (sort === this.currentSort) return;
+    this.currentSort = sort;
+    this.onSortChange?.(sort);
+    await this.loadGame(this.currentGame, sort);
   }
 
   /**
@@ -119,7 +135,7 @@ export class Gallery {
     this._showLoadMore();
 
     try {
-      const params = new URLSearchParams({ limit: '30' });
+      const params = new URLSearchParams({ limit: '30', sort: this.currentSort });
       if (this.currentGame) params.set('game', this.currentGame);
       if (this.pageToken) params.set('pageToken', this.pageToken);
 

@@ -48,16 +48,51 @@
 
   <!-- ===== Category Bar ===== -->
   <nav class="category-bar" id="categoryBar">
-    <div class="category-scroll" id="categoryScroll">
-      <button class="category-chip active" data-game="" id="chipAll">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-        </svg>
-        <span>全部</span>
-      </button>
+    <div class="category-bar-inner">
+      <div class="category-scroll" id="categoryScroll">
+        <button class="category-chip active" data-game="" id="chipAll">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+          </svg>
+          <span>全部</span>
+        </button>
+      </div>
+
+      <div class="sort-control" id="sortControl">
+        <button class="sort-btn" id="sortBtn" aria-label="排序方式" aria-haspopup="listbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+            <path d="M3 17l3 3 3-3"/><path d="M6 18V4"/>
+          </svg>
+          <span class="sort-label" id="sortLabel">最新</span>
+          <svg class="sort-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div class="sort-dropdown" id="sortDropdown" role="listbox">
+          <button class="sort-option active" data-sort="newest" role="option" aria-selected="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+              <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
+            </svg>
+            <span>从新到旧</span>
+          </button>
+          <button class="sort-option" data-sort="oldest" role="option" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+              <path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/>
+            </svg>
+            <span>从旧到新</span>
+          </button>
+        </div>
+      </div>
     </div>
   </nav>
+
+  <!-- ===== Mobile Stats Bar ===== -->
+  <div class="mobile-stats-bar" id="mobileStatsBar">
+    <span class="stats-dot"></span>
+    <span class="stats-text" id="mobileStatsText">加载中...</span>
+  </div>
 
   <!-- ===== Main Content ===== -->
   <main class="main" id="main">

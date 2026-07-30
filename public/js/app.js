@@ -59,6 +59,15 @@ const dom = {
 
   // Misc
   backToTop: $('#backToTop'),
+
+  // Sort
+  sortControl:  $('#sortControl'),
+  sortBtn:      $('#sortBtn'),
+  sortLabel:    $('#sortLabel'),
+  sortDropdown: $('#sortDropdown'),
+
+  // Mobile Stats
+  mobileStatsText: $('#mobileStatsText'),
 };
 
 // ============================================================
@@ -75,6 +84,7 @@ const gallery = new Gallery({
   errorMsgEl:  dom.errorMessage,
   onImageClick: (index) => openLightbox(index),
   onCountChange: (count) => updateStats(count),
+  onSortChange: (sort) => updateSortUI(sort),
 });
 
 const lightbox = new Lightbox({
@@ -225,16 +235,22 @@ function openLightbox(index) {
 // UI 更新
 // ============================================================
 function updateStats(loadedCount, searchQuery, searchTotal) {
+  let text;
   if (searchQuery) {
-    dom.statsText.textContent = `找到 ${searchTotal} 张匹配截图`;
+    text = `找到 ${searchTotal} 张匹配截图`;
   } else if (totalCount !== null) {
     if (loadedCount >= totalCount) {
-      dom.statsText.textContent = `共 ${totalCount} 张截图`;
+      text = `共 ${totalCount} 张截图`;
     } else {
-      dom.statsText.textContent = `共 ${totalCount} 张截图 · 已加载 ${loadedCount} 张`;
+      text = `共 ${totalCount} 张截图 · 已加载 ${loadedCount} 张`;
     }
   } else {
-    dom.statsText.textContent = `已加载 ${loadedCount} 张截图`;
+    text = `已加载 ${loadedCount} 张截图`;
+  }
+  dom.statsText.textContent = text;
+  // 同步到移动端状态栏
+  if (dom.mobileStatsText) {
+    dom.mobileStatsText.textContent = text;
   }
 }
 
@@ -261,6 +277,53 @@ dom.backToTop.addEventListener('click', () => {
 // ============================================================
 dom.retryBtn.addEventListener('click', () => {
   gallery.loadGame(currentGame);
+});
+
+// ============================================================
+// 排序控制
+// ============================================================
+const SORT_LABELS = { newest: '最新', oldest: '最旧' };
+
+function updateSortUI(sort) {
+  dom.sortLabel.textContent = SORT_LABELS[sort] || SORT_LABELS.newest;
+  // 更新选项高亮
+  dom.sortDropdown.querySelectorAll('.sort-option').forEach((opt) => {
+    const isActive = opt.dataset.sort === sort;
+    opt.classList.toggle('active', isActive);
+    opt.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
+
+// 切换下拉菜单
+dom.sortBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  dom.sortControl.classList.toggle('open');
+});
+
+// 选择排序选项
+dom.sortDropdown.querySelectorAll('.sort-option').forEach((opt) => {
+  opt.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sort = opt.dataset.sort;
+    dom.sortControl.classList.remove('open');
+    gallery.setSort(sort);
+    // 切换排序后也需要重新获取总数
+    fetchTotalCount(currentGame);
+  });
+});
+
+// 点击外部关闭下拉菜单
+document.addEventListener('click', (e) => {
+  if (!dom.sortControl.contains(e.target)) {
+    dom.sortControl.classList.remove('open');
+  }
+});
+
+// ESC 关闭下拉菜单
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && dom.sortControl.classList.contains('open')) {
+    dom.sortControl.classList.remove('open');
+  }
 });
 
 // ============================================================
