@@ -30,7 +30,7 @@ export class Gallery {
 
     // 状态
     this.images = [];
-    this.afterKey = null;
+    this.pageToken = null;
     this.hasMore = true;
     this.loading = false;
     this.currentGame = '';
@@ -71,7 +71,7 @@ export class Gallery {
   async loadGame(game = '') {
     this.currentGame = game;
     this.images = [];
-    this.afterKey = null;
+    this.pageToken = null;
     this.hasMore = true;
     this.cardIndex = 0;
 
@@ -90,7 +90,7 @@ export class Gallery {
    */
   showSearchResults(images) {
     this.images = images;
-    this.afterKey = null;
+    this.pageToken = null;
     this.hasMore = false;
     this.cardIndex = 0;
 
@@ -121,14 +121,14 @@ export class Gallery {
     try {
       const params = new URLSearchParams({ limit: '30' });
       if (this.currentGame) params.set('game', this.currentGame);
-      if (this.afterKey) params.set('after', this.afterKey);
+      if (this.pageToken) params.set('pageToken', this.pageToken);
 
       const res = await fetch(`/api/images?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
 
-      this.afterKey = data.nextAfter;
+      this.pageToken = data.pageToken;
       this.hasMore = data.hasMore;
 
       if (data.images.length > 0) {

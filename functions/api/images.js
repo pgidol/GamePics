@@ -1,6 +1,10 @@
 /**
- * GET /api/images?game=xxx&after=xxx&limit=30
- * 列出图片，支持游戏筛选和 startAfter 分页
+ * GET /api/images?game=xxx&pageToken=xxx&limit=30
+ * 列出图片，支持游戏筛选和分页
+ *
+ * 分页策略：复合游标（compound cursor）
+ * 将 R2 批次游标 + 已处理对象数 编码为 base64 令牌，
+ * 下次请求时重新获取同一批次并跳过已处理的对象，确保不重复、不遗漏。
  */
 
 const IMAGE_EXTENSIONS = new Set([
@@ -25,33 +29,49 @@ export async function onRequestGet(context) {
     const url = new URL(context.request.url);
 
     const game = url.searchParams.get('game') || '';
-    const after = url.searchParams.get('after') || undefined;
+    const pageToken = url.searchParams.get('pageToken') || '';
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '30', 10) || 30, 1), 100);
 
     const prefix = game ? `${game}/` : undefined;
-    const images = [];
-    let r2Cursor = undefined;
-    let isFirstCall = true;
-    let exhausted = false;
 
-    // 循环获取，直到收集够 limit 张图片或没有更多数据
+    // ---- 解码分页令牌 ----
+    // 令牌格式: base64(JSON({ c: R2游标|null, s: 已处理对象数 }))
+    let batchCursor = undefined;  // 用于获取当前批次的 R2 cursor
+    let skipCount = 0;            // 当前批次中需要跳过的对象数
+    if (pageToken) {
+      try {
+        const decoded = JSON.parse(atob(pageToken));
+        batchCursor = decoded.c || undefined;
+        skipCount = decoded.s || 0;
+      } catch (e) {
+        // 无效令牌，从头开始
+      }
+    }
+
+    // ---- 收集图片 ----
+    const images = [];
+    let processedInBatch = 0;  // 当前批次已处理的对象数
+    let exhausted = false;     // 是否已遍历完所有 R2 数据
+
     while (images.length < limit) {
       const listOpts = { prefix, limit: 200 };
-
-      if (isFirstCall && after) {
-        // 首次调用：用 startAfter 跳过已返回的图片（对象级精度）
-        listOpts.startAfter = after;
-      } else if (!isFirstCall) {
-        // 同一次 API 请求内的后续 R2 调用：用 R2 内部游标继续
-        listOpts.cursor = r2Cursor;
+      if (batchCursor) {
+        listOpts.cursor = batchCursor;
       }
 
       const listed = await bucket.list(listOpts);
-      isFirstCall = false;
 
+      processedInBatch = 0;
       for (const obj of listed.objects) {
+        processedInBatch++;
+
+        // 跳过上次已返回的对象（从中断处继续）
+        if (skipCount > 0) {
+          skipCount--;
+          continue;
+        }
+
         if (isImageFile(obj.key)) {
-          // 从 key 中提取游戏名和文件名
           const slashIndex = obj.key.indexOf('/');
           const gameName = slashIndex !== -1 ? obj.key.slice(0, slashIndex) : '';
           const fileName = slashIndex !== -1 ? obj.key.slice(slashIndex + 1) : obj.key;
@@ -69,7 +89,7 @@ export async function onRequestGet(context) {
         }
       }
 
-      // 已收集够图片，可能还有更多
+      // 已收集够图片 — batchCursor 仍指向当前批次，processedInBatch 记录位置
       if (images.length >= limit) break;
 
       // R2 没有更多数据了
@@ -78,17 +98,25 @@ export async function onRequestGet(context) {
         break;
       }
 
-      r2Cursor = listed.cursor;
+      // 移动到下一批次
+      batchCursor = listed.cursor;
+      skipCount = 0;
     }
 
-    // 判断是否还有更多：如果收集到了 limit 张则认为可能还有，
-    // 如果已经遍历完所有 R2 数据则确定没有了
+    // ---- 构造下一页令牌 ----
     const hasMore = !exhausted && images.length >= limit;
-    const lastKey = images.length > 0 ? images[images.length - 1].key : null;
+    let nextPageToken = null;
+    if (hasMore) {
+      // 记录当前批次的游标和已处理对象数，下次请求重新获取同一批次并跳过
+      nextPageToken = btoa(JSON.stringify({
+        c: batchCursor || null,
+        s: processedInBatch,
+      }));
+    }
 
     return new Response(JSON.stringify({
       images,
-      nextAfter: hasMore ? lastKey : null,
+      pageToken: nextPageToken,
       hasMore,
     }), {
       headers: {
