@@ -45,9 +45,13 @@ export class Gallery {
     // 无限滚动 Observer
     this.scrollObserver = new IntersectionObserver(
       (entries) => this._onScrollIntersect(entries),
-      { rootMargin: '600px 0px' }
+      { rootMargin: '800px 0px' }
     );
     this.scrollObserver.observe(this.sentinelEl);
+
+    // 滚动事件兜底（CSS columns 布局下 IntersectionObserver 可能不触发）
+    this._scrollHandler = this._onScroll.bind(this);
+    window.addEventListener('scroll', this._scrollHandler, { passive: true });
   }
 
   /**
@@ -139,6 +143,8 @@ export class Gallery {
       this.loading = false;
       if (this.hasMore) {
         this._showLoadMore();
+        // 加载完成后检查哨兵是否已在视口内，如果是则继续加载
+        requestAnimationFrame(() => this._checkSentinel());
       } else {
         this._hideLoadMore();
       }
@@ -243,6 +249,21 @@ export class Gallery {
       if (entry.isIntersecting && this.hasMore && !this.loading) {
         this.loadMore();
       }
+    }
+  }
+
+  _onScroll() {
+    if (this.loading || !this.hasMore) return;
+    this._checkSentinel();
+  }
+
+  _checkSentinel() {
+    if (this.loading || !this.hasMore) return;
+    const rect = this.sentinelEl.getBoundingClientRect();
+    const windowHeight = window.innerHeight;
+    // 如果哨兵距离视口底部不到 800px，触发加载
+    if (rect.top < windowHeight + 800) {
+      this.loadMore();
     }
   }
 

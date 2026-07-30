@@ -41,6 +41,7 @@ export async function onRequestGet(context) {
         limit: 200,
       });
 
+      let reachedLimit = false;
       for (const obj of listed.objects) {
         if (isImageFile(obj.key)) {
           // 从 key 中提取游戏名和文件名
@@ -57,10 +58,22 @@ export async function onRequestGet(context) {
             uploaded: obj.uploaded?.toISOString() || null,
           });
 
-          if (images.length >= limit) break;
+          if (images.length >= limit) {
+            reachedLimit = true;
+            break;
+          }
         }
       }
 
+      // 已收集够图片 — 仍有更多可加载
+      if (reachedLimit) {
+        hasMore = true;
+        // 保留当前游标供下次分页使用
+        currentCursor = listed.truncated ? listed.cursor : currentCursor;
+        break;
+      }
+
+      // 本批次没有更多数据了
       if (!listed.truncated) {
         hasMore = false;
         currentCursor = null;

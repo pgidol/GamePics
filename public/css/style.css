@@ -547,10 +547,7 @@ body {
   to { transform: rotate(360deg); }
 }
 
-#scrollSentinel {
-  height: 1px;
-  pointer-events: none;
-}
+
 
 .empty-state,
 .error-state {
