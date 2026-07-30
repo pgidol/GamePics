@@ -107,6 +107,7 @@ const search = new Search({
 let currentGame = '';
 let isSearchMode = false;
 let games = [];
+let totalCount = null; // 总截图数
 
 // ============================================================
 // 游戏分类
@@ -154,8 +155,27 @@ function selectGame(gameName) {
   // 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // 加载该分类的图片
+  // 并行加载图片和总数
   gallery.loadGame(gameName);
+  fetchTotalCount(gameName);
+}
+
+/**
+ * 获取图片总数
+ */
+async function fetchTotalCount(game = '') {
+  try {
+    const params = new URLSearchParams();
+    if (game) params.set('game', game);
+    const res = await fetch(`${CONFIG.API_BASE}/count?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    totalCount = data.total;
+    updateStats(gallery.images.length);
+  } catch (err) {
+    console.error('Failed to fetch count:', err);
+    totalCount = null;
+  }
 }
 
 function updateCategoryHighlight(gameName) {
@@ -184,7 +204,7 @@ function handleSearchResults(images, query) {
 
   gallery.showSearchResults(images);
   lightbox.setImages(images);
-  updateStats(images.length, query);
+  updateStats(images.length, query, images.length);
 }
 
 function handleSearchClear() {
@@ -204,11 +224,17 @@ function openLightbox(index) {
 // ============================================================
 // UI 更新
 // ============================================================
-function updateStats(count, searchQuery) {
+function updateStats(loadedCount, searchQuery, searchTotal) {
   if (searchQuery) {
-    dom.statsText.textContent = `找到 ${count} 张匹配截图`;
+    dom.statsText.textContent = `找到 ${searchTotal} 张匹配截图`;
+  } else if (totalCount !== null) {
+    if (loadedCount >= totalCount) {
+      dom.statsText.textContent = `共 ${totalCount} 张截图`;
+    } else {
+      dom.statsText.textContent = `共 ${totalCount} 张截图 · 已加载 ${loadedCount} 张`;
+    }
   } else {
-    dom.statsText.textContent = `${count} 张截图`;
+    dom.statsText.textContent = `已加载 ${loadedCount} 张截图`;
   }
 }
 
@@ -284,11 +310,12 @@ async function init() {
   const initialGame = readHash();
   currentGame = initialGame;
 
-  // 并行加载分类和图片
+  // 并行加载分类、图片和总数
   const gamesPromise = loadGames();
   const imagesPromise = gallery.loadGame(initialGame);
+  const countPromise = fetchTotalCount(initialGame);
 
-  await Promise.all([gamesPromise, imagesPromise]);
+  await Promise.all([gamesPromise, imagesPromise, countPromise]);
 
   // 如果有初始游戏，更新高亮
   if (initialGame) {
