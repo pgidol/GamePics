@@ -36,6 +36,10 @@ export class Gallery {
     this.currentGame = '';
     this.cardIndex = 0; // 用于动画延迟
 
+    // JS 分列管理（避免 CSS columns 重排）
+    this.columns = [];
+    this._currentColCount = 0;
+
     // 懒加载 Observer
     this.lazyObserver = new IntersectionObserver(
       (entries) => this._onLazyIntersect(entries),
@@ -49,9 +53,16 @@ export class Gallery {
     );
     this.scrollObserver.observe(this.sentinelEl);
 
-    // 滚动事件兜底（CSS columns 布局下 IntersectionObserver 可能不触发）
+    // 滚动事件兜底
     this._scrollHandler = this._onScroll.bind(this);
     window.addEventListener('scroll', this._scrollHandler, { passive: true });
+
+    // 窗口缩放时重建列
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => this._onResize(), 200);
+    });
   }
 
   /**
@@ -64,8 +75,8 @@ export class Gallery {
     this.hasMore = true;
     this.cardIndex = 0;
 
-    // 清空画廊
-    this.galleryEl.innerHTML = '';
+    // 重建列容器
+    this._initColumns();
     this._hideEmpty();
     this._hideError();
     this._showSkeleton();
@@ -83,7 +94,7 @@ export class Gallery {
     this.hasMore = false;
     this.cardIndex = 0;
 
-    this.galleryEl.innerHTML = '';
+    this._initColumns();
     this._hideError();
     this._hideSkeleton();
 
@@ -160,16 +171,74 @@ export class Gallery {
 
   // ===== 内部方法 =====
 
-  _renderCards(images) {
-    const fragment = document.createDocumentFragment();
+  // ---------- 列管理 ----------
 
-    for (const img of images) {
-      const card = this._createCard(img, this.cardIndex);
-      fragment.appendChild(card);
-      this.cardIndex++;
+  _getColumnCount() {
+    const w = window.innerWidth;
+    if (w >= 1800) return 6;
+    if (w >= 1440) return 5;
+    if (w >= 1024) return 4;
+    if (w >= 640)  return 3;
+    return 2;
+  }
+
+  _initColumns() {
+    this.galleryEl.innerHTML = '';
+    const count = this._getColumnCount();
+    this._currentColCount = count;
+    this.columns = [];
+    for (let i = 0; i < count; i++) {
+      const col = document.createElement('div');
+      col.className = 'gallery-column';
+      this.galleryEl.appendChild(col);
+      this.columns.push(col);
+    }
+  }
+
+  _getShortestColumnIndex() {
+    let minH = Infinity;
+    let minIdx = 0;
+    for (let i = 0; i < this.columns.length; i++) {
+      const h = this.columns[i].offsetHeight;
+      if (h < minH) {
+        minH = h;
+        minIdx = i;
+      }
+    }
+    return minIdx;
+  }
+
+  _onResize() {
+    const newCount = this._getColumnCount();
+    if (newCount === this._currentColCount) return;
+
+    // 收集所有现有卡片
+    const cards = [];
+    for (const col of this.columns) {
+      while (col.firstChild) {
+        cards.push(col.removeChild(col.firstChild));
+      }
     }
 
-    this.galleryEl.appendChild(fragment);
+    // 用新列数重建
+    this._initColumns();
+
+    // 重新分配卡片到最短列
+    for (const card of cards) {
+      const idx = this._getShortestColumnIndex();
+      this.columns[idx].appendChild(card);
+    }
+  }
+
+  // ---------- 渲染 ----------
+
+  _renderCards(images) {
+    for (const img of images) {
+      const card = this._createCard(img, this.cardIndex);
+      const colIdx = this._getShortestColumnIndex();
+      this.columns[colIdx].appendChild(card);
+      this.cardIndex++;
+    }
   }
 
   _createCard(img, index) {

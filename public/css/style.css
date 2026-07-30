@@ -359,45 +359,31 @@ body {
 }
 
 /* ============================================================
-   Masonry Gallery (CSS Columns)
+   Masonry Gallery (JS-managed flexbox columns)
+   列数由 JS 控制，CSS 只负责布局和间距
    ============================================================ */
 .gallery {
-  column-count: 2;
-  column-gap: var(--gap-sm);
+  display: flex;
+  gap: var(--gap-sm);
+  align-items: flex-start;
 }
 
-@media (min-width: 640px) {
-  .gallery { column-count: 3; column-gap: var(--gap-md); }
-}
-@media (min-width: 1024px) {
-  .gallery { column-count: 4; column-gap: var(--gap-lg); }
-}
-@media (min-width: 1440px) {
-  .gallery { column-count: 5; column-gap: var(--gap-lg); }
-}
-@media (min-width: 1800px) {
-  .gallery { column-count: 6; column-gap: var(--gap-lg); }
+@media (min-width: 640px)  { .gallery { gap: var(--gap-md); } }
+@media (min-width: 1024px) { .gallery { gap: var(--gap-lg); } }
+
+.gallery-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
 }
 
-/* Native CSS masonry for supporting browsers */
-@supports (grid-template-rows: masonry) {
-  .gallery {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: masonry;
-    gap: var(--gap-sm);
-    column-count: unset;
-  }
-  @media (min-width: 640px)  { .gallery { grid-template-columns: repeat(3, 1fr); gap: var(--gap-md); } }
-  @media (min-width: 1024px) { .gallery { grid-template-columns: repeat(4, 1fr); gap: var(--gap-lg); } }
-  @media (min-width: 1440px) { .gallery { grid-template-columns: repeat(5, 1fr); gap: var(--gap-lg); } }
-  @media (min-width: 1800px) { .gallery { grid-template-columns: repeat(6, 1fr); gap: var(--gap-lg); } }
-}
+@media (min-width: 640px)  { .gallery-column { gap: var(--gap-md); } }
+@media (min-width: 1024px) { .gallery-column { gap: var(--gap-lg); } }
 
 /* ---------- Gallery Card ---------- */
 .gallery-card {
-  break-inside: avoid;
-  margin-bottom: var(--gap-sm);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-card);
@@ -410,13 +396,6 @@ body {
     border-color var(--t-normal) ease,
     box-shadow var(--t-normal) ease;
   animation: card-enter var(--t-slow) var(--ease-out) both;
-}
-
-@media (min-width: 640px) {
-  .gallery-card { margin-bottom: var(--gap-md); }
-}
-@media (min-width: 1024px) {
-  .gallery-card { margin-bottom: var(--gap-lg); }
 }
 
 .gallery-card:hover {
