@@ -94,7 +94,7 @@ async function handleSortedRequest(bucket, prefix, sort, limit, pageToken) {
   }), {
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=30',
+      'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
     },
   });
 }
@@ -217,7 +217,7 @@ async function handleDefaultRequest(bucket, prefix, limit, pageToken) {
   }), {
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=30',
+      'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
     },
   });
 }

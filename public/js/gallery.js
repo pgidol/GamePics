@@ -203,6 +203,7 @@ export class Gallery {
     const count = this._getColumnCount();
     this._currentColCount = count;
     this.columns = [];
+    this.colHeights = new Array(count).fill(0);
     for (let i = 0; i < count; i++) {
       const col = document.createElement('div');
       col.className = 'gallery-column';
@@ -214,8 +215,8 @@ export class Gallery {
   _getShortestColumnIndex() {
     let minH = Infinity;
     let minIdx = 0;
-    for (let i = 0; i < this.columns.length; i++) {
-      const h = this.columns[i].offsetHeight;
+    for (let i = 0; i < this.colHeights.length; i++) {
+      const h = this.colHeights[i];
       if (h < minH) {
         minH = h;
         minIdx = i;
@@ -243,6 +244,7 @@ export class Gallery {
     for (const card of cards) {
       const idx = this._getShortestColumnIndex();
       this.columns[idx].appendChild(card);
+      this.colHeights[idx] += 1;
     }
   }
 
@@ -253,6 +255,7 @@ export class Gallery {
       const card = this._createCard(img, this.cardIndex);
       const colIdx = this._getShortestColumnIndex();
       this.columns[colIdx].appendChild(card);
+      this.colHeights[colIdx] += 1;
       this.cardIndex++;
     }
   }
@@ -266,17 +269,34 @@ export class Gallery {
     const globalIndex = this.images.indexOf(img);
     card.dataset.index = globalIndex !== -1 ? globalIndex : index;
 
-    // 图片元素（懒加载）
+    const imgUrl = this.getImageUrl(img.key);
+
+    // 图片元素
     const imgEl = document.createElement('img');
-    imgEl.dataset.src = this.getImageUrl(img.key);
     imgEl.alt = img.name || img.key;
-    imgEl.loading = 'lazy';
     imgEl.decoding = 'async';
+
+    const isEager = index < 6;
+    if (isEager) {
+      imgEl.loading = 'eager';
+      if (index === 0) {
+        imgEl.fetchPriority = 'high';
+        imgEl.setAttribute('fetchpriority', 'high');
+      }
+      imgEl.src = imgUrl;
+    } else {
+      imgEl.loading = 'lazy';
+      imgEl.dataset.src = imgUrl;
+    }
 
     // 图片加载完成后显示
     imgEl.addEventListener('load', () => {
       imgEl.classList.add('loaded');
     });
+
+    if (imgEl.complete && imgEl.src) {
+      imgEl.classList.add('loaded');
+    }
 
     imgEl.addEventListener('error', () => {
       // 加载失败时显示占位
@@ -304,8 +324,10 @@ export class Gallery {
     card.appendChild(imgEl);
     card.appendChild(overlay);
 
-    // 注册懒加载
-    this.lazyObserver.observe(imgEl);
+    // 仅针对非 eager 图片注册懒加载 Observer
+    if (!isEager) {
+      this.lazyObserver.observe(imgEl);
+    }
 
     // 点击事件
     card.addEventListener('click', () => {

@@ -50,8 +50,8 @@ body {
 
   /* Text */
   --text-primary: #e8eaf0;
-  --text-secondary: #9099a8;
-  --text-tertiary: #5a6275;
+  --text-secondary: #a3adc2;
+  --text-tertiary: #828b9e;
   --text-accent: #a5b4fc;
 
   /* Glass */
@@ -556,7 +556,6 @@ body {
   display: block;
   width: 100%;
   height: auto;
-  min-height: 150px;
   aspect-ratio: 16 / 10;
   object-fit: cover;
   opacity: 0;
@@ -565,9 +564,6 @@ body {
 }
 .gallery-card img.loaded {
   opacity: 1;
-  min-height: 0;
-  aspect-ratio: auto;
-  object-fit: initial;
 }
 
 /* Card overlay (shows on hover) */
@@ -638,16 +634,21 @@ body {
    Loading / Empty / Error States
    ============================================================ */
 .load-more {
-  display: none;
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--gap-md);
   padding: var(--gap-2xl) 0;
+  min-height: 80px;
   color: var(--text-tertiary);
   font-size: 0.875rem;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--t-fast) ease, visibility var(--t-fast) ease;
 }
 .load-more.visible {
-  display: flex;
+  visibility: visible;
+  opacity: 1;
 }
 
 .spinner {

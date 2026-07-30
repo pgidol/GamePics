@@ -7,6 +7,8 @@
   <meta name="description" content="浏览精选游戏截图收藏，支持全屏预览、分类浏览和搜索。跨设备流畅体验。">
   <meta name="theme-color" content="#0a0a0f">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+  <link rel="preconnect" href="https://r2.yuege.fun" crossorigin>
+  <link rel="dns-prefetch" href="https://r2.yuege.fun">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,8 +19,8 @@
   <!-- ===== Header ===== -->
   <header class="header" id="header">
     <div class="header-inner">
-      <a class="logo" href="/" id="logo">
-        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <a class="logo" href="/" id="logo" aria-label="GamePics 首页">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="2" y="6" width="20" height="12" rx="3"/>
           <circle cx="8.5" cy="12" r="1.5"/><circle cx="15.5" cy="12" r="1.5"/>
           <path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/>
@@ -27,10 +29,10 @@
       </a>
 
       <div class="search-wrapper" id="searchWrapper">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="text" id="searchInput" class="search-input" placeholder="搜索截图..." autocomplete="off" spellcheck="false">
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索截图..." aria-label="搜索截图" autocomplete="off" spellcheck="false">
         <kbd class="search-shortcut" id="searchShortcut">/</kbd>
         <button class="search-clear" id="searchClear" aria-label="清除搜索">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
