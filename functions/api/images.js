@@ -1,6 +1,6 @@
 /**
- * GET /api/images?game=xxx&cursor=xxx&limit=30
- * 列出图片，支持游戏筛选和游标分页
+ * GET /api/images?game=xxx&after=xxx&limit=30
+ * 列出图片，支持游戏筛选和 startAfter 分页
  */
 
 const IMAGE_EXTENSIONS = new Set([
@@ -25,23 +25,30 @@ export async function onRequestGet(context) {
     const url = new URL(context.request.url);
 
     const game = url.searchParams.get('game') || '';
-    const cursor = url.searchParams.get('cursor') || undefined;
+    const after = url.searchParams.get('after') || undefined;
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '30', 10) || 30, 1), 100);
 
     const prefix = game ? `${game}/` : undefined;
     const images = [];
-    let currentCursor = cursor;
-    let hasMore = false;
+    let r2Cursor = undefined;
+    let isFirstCall = true;
+    let exhausted = false;
 
     // 循环获取，直到收集够 limit 张图片或没有更多数据
     while (images.length < limit) {
-      const listed = await bucket.list({
-        prefix,
-        cursor: currentCursor,
-        limit: 200,
-      });
+      const listOpts = { prefix, limit: 200 };
 
-      let reachedLimit = false;
+      if (isFirstCall && after) {
+        // 首次调用：用 startAfter 跳过已返回的图片（对象级精度）
+        listOpts.startAfter = after;
+      } else if (!isFirstCall) {
+        // 同一次 API 请求内的后续 R2 调用：用 R2 内部游标继续
+        listOpts.cursor = r2Cursor;
+      }
+
+      const listed = await bucket.list(listOpts);
+      isFirstCall = false;
+
       for (const obj of listed.objects) {
         if (isImageFile(obj.key)) {
           // 从 key 中提取游戏名和文件名
@@ -58,35 +65,30 @@ export async function onRequestGet(context) {
             uploaded: obj.uploaded?.toISOString() || null,
           });
 
-          if (images.length >= limit) {
-            reachedLimit = true;
-            break;
-          }
+          if (images.length >= limit) break;
         }
       }
 
-      // 已收集够图片 — 仍有更多可加载
-      if (reachedLimit) {
-        hasMore = true;
-        // 保留当前游标供下次分页使用
-        currentCursor = listed.truncated ? listed.cursor : currentCursor;
-        break;
-      }
+      // 已收集够图片，可能还有更多
+      if (images.length >= limit) break;
 
-      // 本批次没有更多数据了
+      // R2 没有更多数据了
       if (!listed.truncated) {
-        hasMore = false;
-        currentCursor = null;
+        exhausted = true;
         break;
       }
 
-      currentCursor = listed.cursor;
-      hasMore = true;
+      r2Cursor = listed.cursor;
     }
+
+    // 判断是否还有更多：如果收集到了 limit 张则认为可能还有，
+    // 如果已经遍历完所有 R2 数据则确定没有了
+    const hasMore = !exhausted && images.length >= limit;
+    const lastKey = images.length > 0 ? images[images.length - 1].key : null;
 
     return new Response(JSON.stringify({
       images,
-      cursor: hasMore ? currentCursor : null,
+      nextAfter: hasMore ? lastKey : null,
       hasMore,
     }), {
       headers: {

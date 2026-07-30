@@ -13,6 +13,7 @@ html {
   font-size: 16px;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -420,12 +421,18 @@ body {
   display: block;
   width: 100%;
   height: auto;
+  min-height: 150px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
   opacity: 0;
   transition: opacity var(--t-slow) ease;
   background: var(--bg-tertiary);
 }
 .gallery-card img.loaded {
   opacity: 1;
+  min-height: 0;
+  aspect-ratio: auto;
+  object-fit: initial;
 }
 
 /* Card overlay (shows on hover) */
