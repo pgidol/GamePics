@@ -35,107 +35,189 @@ export async function onRequestGet(context) {
 
     const prefix = game ? `${game}/` : undefined;
 
-    // ---- 解码分页令牌 ----
-    // 令牌格式: base64(JSON({ c: R2游标|null, s: 已处理对象数 }))
-    let batchCursor = undefined;  // 用于获取当前批次的 R2 cursor
-    let skipCount = 0;            // 当前批次中需要跳过的对象数
-    if (pageToken) {
-      try {
-        const decoded = JSON.parse(atob(pageToken));
-        batchCursor = decoded.c || undefined;
-        skipCount = decoded.s || 0;
-      } catch (e) {
-        // 无效令牌，从头开始
-      }
+    // 排序模式：需要获取全部图片后全局排序，再偏移分页
+    if (sort === 'newest' || sort === 'oldest') {
+      return await handleSortedRequest(bucket, prefix, sort, limit, pageToken);
     }
 
-    // ---- 收集图片 ----
-    const images = [];
-    let processedInBatch = 0;  // 当前批次已处理的对象数
-    let exhausted = false;     // 是否已遍历完所有 R2 数据
-
-    while (images.length < limit) {
-      const listOpts = { prefix, limit: 200 };
-      if (batchCursor) {
-        listOpts.cursor = batchCursor;
-      }
-
-      const listed = await bucket.list(listOpts);
-
-      processedInBatch = 0;
-      for (const obj of listed.objects) {
-        processedInBatch++;
-
-        // 跳过上次已返回的对象（从中断处继续）
-        if (skipCount > 0) {
-          skipCount--;
-          continue;
-        }
-
-        if (isImageFile(obj.key)) {
-          const slashIndex = obj.key.indexOf('/');
-          const gameName = slashIndex !== -1 ? obj.key.slice(0, slashIndex) : '';
-          const fileName = slashIndex !== -1 ? obj.key.slice(slashIndex + 1) : obj.key;
-
-          images.push({
-            key: obj.key,
-            game: gameName,
-            name: fileName,
-            size: obj.size,
-            sizeFormatted: formatSize(obj.size),
-            uploaded: obj.uploaded?.toISOString() || null,
-          });
-
-          if (images.length >= limit) break;
-        }
-      }
-
-      // 已收集够图片 — batchCursor 仍指向当前批次，processedInBatch 记录位置
-      if (images.length >= limit) break;
-
-      // R2 没有更多数据了
-      if (!listed.truncated) {
-        exhausted = true;
-        break;
-      }
-
-      // 移动到下一批次
-      batchCursor = listed.cursor;
-      skipCount = 0;
-    }
-
-    // ---- 按上传时间排序 ----
-    images.sort((a, b) => {
-      const ta = a.uploaded ? new Date(a.uploaded).getTime() : 0;
-      const tb = b.uploaded ? new Date(b.uploaded).getTime() : 0;
-      return sort === 'oldest' ? (ta - tb) : (tb - ta);
-    });
-
-    // ---- 构造下一页令牌 ----
-    const hasMore = !exhausted && images.length >= limit;
-    let nextPageToken = null;
-    if (hasMore) {
-      // 记录当前批次的游标和已处理对象数，下次请求重新获取同一批次并跳过
-      nextPageToken = btoa(JSON.stringify({
-        c: batchCursor || null,
-        s: processedInBatch,
-      }));
-    }
-
-    return new Response(JSON.stringify({
-      images,
-      pageToken: nextPageToken,
-      hasMore,
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=30',
-      },
-    });
+    // 默认模式：R2 key 字典序，游标分页（高效）
+    return await handleDefaultRequest(bucket, prefix, limit, pageToken);
   } catch (err) {
     return new Response(
       JSON.stringify({ error: 'Failed to list images', detail: err.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
+}
+
+/**
+ * 排序模式：获取全部图片 → 按上传时间全局排序 → 偏移分页
+ */
+async function handleSortedRequest(bucket, prefix, sort, limit, pageToken) {
+  // 解码偏移量
+  let offset = 0;
+  if (pageToken) {
+    try {
+      const decoded = JSON.parse(atob(pageToken));
+      offset = decoded.o || 0;
+    } catch (e) {
+      // 无效令牌，从头开始
+    }
+  }
+
+  // 获取全部图片元数据
+  const allImages = await fetchAllImages(bucket, prefix);
+
+  // 全局排序
+  allImages.sort((a, b) => {
+    const ta = a.uploadedTs;
+    const tb = b.uploadedTs;
+    return sort === 'oldest' ? (ta - tb) : (tb - ta);
+  });
+
+  // 偏移分页
+  const pageImages = allImages.slice(offset, offset + limit);
+  const hasMore = offset + limit < allImages.length;
+
+  let nextPageToken = null;
+  if (hasMore) {
+    nextPageToken = btoa(JSON.stringify({ o: offset + limit }));
+  }
+
+  // 移除内部排序字段
+  const images = pageImages.map(({ uploadedTs, ...rest }) => rest);
+
+  return new Response(JSON.stringify({
+    images,
+    pageToken: nextPageToken,
+    hasMore,
+  }), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=30',
+    },
+  });
+}
+
+/**
+ * 获取 R2 中全部图片元数据
+ */
+async function fetchAllImages(bucket, prefix) {
+  const allImages = [];
+  let cursor = undefined;
+
+  while (true) {
+    const listOpts = { prefix, limit: 1000 };
+    if (cursor) listOpts.cursor = cursor;
+
+    const listed = await bucket.list(listOpts);
+
+    for (const obj of listed.objects) {
+      if (isImageFile(obj.key)) {
+        const slashIndex = obj.key.indexOf('/');
+        const gameName = slashIndex !== -1 ? obj.key.slice(0, slashIndex) : '';
+        const fileName = slashIndex !== -1 ? obj.key.slice(slashIndex + 1) : obj.key;
+
+        allImages.push({
+          key: obj.key,
+          game: gameName,
+          name: fileName,
+          size: obj.size,
+          sizeFormatted: formatSize(obj.size),
+          uploaded: obj.uploaded?.toISOString() || null,
+          uploadedTs: obj.uploaded ? obj.uploaded.getTime() : 0,
+        });
+      }
+    }
+
+    if (!listed.truncated) break;
+    cursor = listed.cursor;
+  }
+
+  return allImages;
+}
+
+/**
+ * 默认模式：R2 key 字典序，复合游标分页
+ */
+async function handleDefaultRequest(bucket, prefix, limit, pageToken) {
+  let batchCursor = undefined;
+  let skipCount = 0;
+  if (pageToken) {
+    try {
+      const decoded = JSON.parse(atob(pageToken));
+      batchCursor = decoded.c || undefined;
+      skipCount = decoded.s || 0;
+    } catch (e) {
+      // 无效令牌，从头开始
+    }
+  }
+
+  const images = [];
+  let processedInBatch = 0;
+  let exhausted = false;
+
+  while (images.length < limit) {
+    const listOpts = { prefix, limit: 200 };
+    if (batchCursor) listOpts.cursor = batchCursor;
+
+    const listed = await bucket.list(listOpts);
+
+    processedInBatch = 0;
+    for (const obj of listed.objects) {
+      processedInBatch++;
+
+      if (skipCount > 0) {
+        skipCount--;
+        continue;
+      }
+
+      if (isImageFile(obj.key)) {
+        const slashIndex = obj.key.indexOf('/');
+        const gameName = slashIndex !== -1 ? obj.key.slice(0, slashIndex) : '';
+        const fileName = slashIndex !== -1 ? obj.key.slice(slashIndex + 1) : obj.key;
+
+        images.push({
+          key: obj.key,
+          game: gameName,
+          name: fileName,
+          size: obj.size,
+          sizeFormatted: formatSize(obj.size),
+          uploaded: obj.uploaded?.toISOString() || null,
+        });
+
+        if (images.length >= limit) break;
+      }
+    }
+
+    if (images.length >= limit) break;
+
+    if (!listed.truncated) {
+      exhausted = true;
+      break;
+    }
+
+    batchCursor = listed.cursor;
+    skipCount = 0;
+  }
+
+  const hasMore = !exhausted && images.length >= limit;
+  let nextPageToken = null;
+  if (hasMore) {
+    nextPageToken = btoa(JSON.stringify({
+      c: batchCursor || null,
+      s: processedInBatch,
+    }));
+  }
+
+  return new Response(JSON.stringify({
+    images,
+    pageToken: nextPageToken,
+    hasMore,
+  }), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=30',
+    },
+  });
 }
